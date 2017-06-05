@@ -1,0 +1,79 @@
+/* -*- mode: c; tab-width: 4; indent-tabs-mode: t -*- */
+
+/*
+ *
+ * Include file for zookeepertcl package
+ *
+ * Copyright (C) 2017 by FlightAware, All Rights Reserved
+ *
+ * Freely redistributable under the Berkeley copyright, see license.terms
+ * for details.
+ */
+
+#include <tcl.h>
+#include <string.h>
+
+extern int
+socketserverObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objvp[]);
+
+#if 0
+
+#define ZOOKEEPER_OBJECT_MAGIC 7120351
+
+
+// this is the data structure we have to throw around between
+// zookeeper and zookeepertcl to be able to find one from the other
+typedef struct zootcl_objectClientData
+{
+    int zookeeper_object_magic;
+    Tcl_Interp *interp;
+	ZOOAPI zhandle_t *zh;
+	Tcl_ThreadId threadId;
+	Tcl_Command cmdToken;
+	Tcl_Channel channel;
+	int currentFD;
+	Tcl_Obj *initCallbackObj; // handle callbacks from zookeeper_init callback function
+} zootcl_objectClientData;
+
+enum zootcl_CallbackType {NULL_CALLBACK, INTERNAL_INIT_CALLBACK, WATCHER_CALLBACK, DATA_CALLBACK, STRING_CALLBACK, VOID_CALLBACK, STAT_CALLBACK};
+
+typedef struct zootcl_callbackContext
+{
+	zootcl_objectClientData *zo;
+	Tcl_Obj *callbackObj;
+} zootcl_callbackContext;
+
+typedef struct zootcl_syncCallbackContext
+{
+	zootcl_objectClientData *zo;
+	int rc;
+	struct Stat stat;
+	int syncDone;
+	Tcl_Obj *dataObj;
+} zootcl_syncCallbackContext;
+
+// this is the data structure that zookeepertcl queues to tcl
+// to move an event from zookeeper into tcl
+typedef struct zootcl_callbackEvent
+{
+    Tcl_Event event;
+	zootcl_objectClientData *zo;
+	Tcl_Obj *commandObj;
+	enum zootcl_CallbackType callbackType;
+	union {
+		struct {
+			int type;
+			int state;
+			char *path;
+		} watcher;
+		struct {
+			int rc;
+			Tcl_Obj *dataObj;
+			struct Stat stat;
+		} data;
+	};
+} zootcl_callbackEvent;
+#endif
+
+/* vim: set ts=4 sw=4 sts=4 noet : */
+
