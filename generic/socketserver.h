@@ -16,10 +16,19 @@
 extern int
 socketserverObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objvp[]);
 
+#define SOCKETSERVER_OBJECT_MAGIC 71820352
+
+typedef struct socketserver_objectClientData
+{
+    int object_magic;
+    // Input and output fd's for pipe
+    int in;
+    int out;
+    // TCP port number
+    int port;
+} socketserver_objectClientData;
+
 #if 0
-
-#define ZOOKEEPER_OBJECT_MAGIC 7120351
-
 
 // this is the data structure we have to throw around between
 // zookeeper and zookeepertcl to be able to find one from the other

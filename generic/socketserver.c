@@ -45,52 +45,51 @@
  *----------------------------------------------------------------------
  */
 
+static char msgbuf[512];
+
 void * socketserver_thread(void *args)
 {
     int sock = *(int *)args;
-    int socket_desc , client_sock , c;
+    int socket_desc , client_sock;
     struct sockaddr_in server , client;
+    int c = sizeof(struct sockaddr_in);
 
     // create tcp socket
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
     if (socket_desc == -1)
     {
-        printf("Could not create socket");
+        strcpy(msgbuf, "Could not create socket");
     }
-    puts("Socket created");
+    strcpy(msgbuf, "Socket created");
     
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons( 8888 );
     if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
     {
-        perror("bind failed");
+        strcpy(msgbuf, "bind failed");
         return (void *)1;
     }
-    puts("bind done");
+    strcpy(msgbuf, "bind done");
     
-    //Listen
     listen(socket_desc , SOMAXCONN);
     
-    //Accept and incoming connection
-    puts("Waiting for incoming connections...");
-    c = sizeof(struct sockaddr_in);
+    strcpy(msgbuf, "Waiting for incoming connections...");
     
     while (1) {
-        //accept connection from an incoming client
         client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
         if (client_sock < 0 && errno != EINTR)
         {
             // EINTR are ok in accept calls, retry
-            perror("accept failed");
+            strcpy(msgbuf, "accept failed");
         }
         else if (client_sock != -1)
         {
-            puts("Connection accepted");
+            strcpy(msgbuf, "Connection accepted");
             if (ancil_send_fd(sock, client_sock)) {
-                perror("ancil_send_fd");
+                strcpy(msgbuf, "ancil_send_fd failed");
             } else {
-                printf("Sent fd.\n");
+                strcpy(msgbuf, "Sent fd.\n");
             }
             close(client_sock);
         }
@@ -98,97 +97,23 @@ void * socketserver_thread(void *args)
     return (void *)0;
 }
 
-
-int socketserver_server_makepipe(int *in, int *out)
-{
-    pthread_t tid;
-    int sock[2];
-    
-    if(socketpair(PF_UNIX, SOCK_STREAM, 0, sock)) {
-        perror("socketpair");
-        return -1;
-    } else {
-        printf("Established socket pair: (%d, %d)\n", sock[0], sock[1]);
-    }
-    *in = sock[0];
-    *out = sock[1];
-    
-    return 0;
-}
-
-int socketserver_server_subcommand(int * sock)
-{
-    pthread_t tid;
-
-    if (pthread_create(&tid, NULL, socketserver_thread, sock) != 0) {
-        perror("Failed to create thread to read socket");
-        return 1;
-    }
-    pthread_detach(tid);
-    
-    return 0;
-}
-
-int socketserver_client_subcommand(int sock)
-{
-    ssize_t read_size;
-    char client_message[2000];
-    int fd;
-
-    if(ancil_recv_fd(sock, &fd)) {
-        perror("ancil_recv_fd");
-        exit(1);
-    } else {
-        printf("%d Received fd: %d\n", getpid(), fd);
-    }
-    
-    memset(client_message, 0, sizeof(client_message));
-    //Receive a message from client
-    while( (read_size = recv(fd , client_message , 2000 , 0)) > 0 )
-    {
-        //Send the message back to client
-        int len = strlen(client_message);
-        int write_size = write(fd , client_message , len);
-        if (read_size != write_size) {
-            perror("write failed to echo string");
-        }
-        memset(client_message, 0, sizeof(client_message));
-    }
-    
-    if(read_size == 0)
-    {
-        puts("Client disconnected");
-        fflush(stdout);
-    }
-    else if(read_size == -1)
-    {
-        perror("recv failed");
-    }
-    
-    close(fd);
-    exit(0);
-}
-
-#if 0
 int
 socketserverObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
-	int optIndex;
-
-    static CONST char *options[] = {
-        "-server",
-        "-client",
-        NULL
-    };
+    socketserver_objectClientData *data = (socketserver_objectClientData *)clientData;
+    int optIndex;
+    pthread_t tid;
+    char channel_name[80];
 
     enum options {
-		OPT_SERVER,
-		OPT_CLIENT
+	OPT_CLIENT,
+        OPT_SERVER
     };
+    static CONST char *options[] = { "client", "server" };
 
     // basic command line processing
-    if (objc < 2) {
-        Tcl_WrongNumArgs (interp, 1, objv, "subcommand ?args?");
+    if (objc != 3) {
+        Tcl_WrongNumArgs (interp, 1, objv, "server ?port? | client ?handler?");
         return TCL_ERROR;
     }
 
@@ -198,43 +123,52 @@ socketserverObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj 
         return TCL_ERROR;
     }
 
-    switch ((enum options) optIndex) {
-		case OPT_SERVER:
-			return socketserver_server_subcommand(interp, objc, objv);
+    if (data->object_magic != SOCKETSERVER_OBJECT_MAGIC) {
+       	Tcl_AddErrorInfo(interp, "Incorrect magic value on internal state");
+       	return TCL_ERROR;
+    }
 
-		case OPT_CLIENT:
-			return socketserver_client_subcommand(interp, objc, objv);
+    switch ((enum options) optIndex) {
+	case OPT_SERVER:
+
+		/* If we do not have a socket pair create it */
+	    	if (data->in == -1) {
+        		int sock[2];
+        		if (socketpair(PF_UNIX, SOCK_STREAM, 0, sock)) {
+            			Tcl_AddErrorInfo(interp, "Failed to create thread to read socketpipe");
+            			return TCL_ERROR;
+        		}
+	        	data->in = sock[0];
+       		 	data->out = sock[1];
+    		}
+    
+    		if (pthread_create(&tid, NULL, socketserver_thread, &data->in) != 0) {
+		        Tcl_AddErrorInfo(interp, "Failed to create thread to read socketpipe");
+		        return TCL_ERROR;
+    		}
+    		pthread_detach(tid);
+	break;
+
+	case OPT_CLIENT:
+	{
+		int fd = -1;
+		if (ancil_recv_fd(data->out, &fd) || fd == -1) {
+			Tcl_AddErrorInfo(interp, "Failed in ancil_recv_fd");
+			return TCL_ERROR;
+		}
+                Tcl_Channel channel = Tcl_MakeFileChannel((void *)fd, TCL_READABLE|TCL_WRITABLE);
+                Tcl_RegisterChannel(interp, channel);
+		const char *channel_name = Tcl_GetChannelName(channel);
+                Tcl_SetObjResult(interp, Tcl_NewStringObj(channel_name, strlen(channel_name)));
+	}
+	break;
+
+        default:
+		Tcl_AddErrorInfo(interp, "Unexpected command option");
+		return TCL_ERROR;    
 	}
 
     return TCL_OK;
 }
-#else
-int main(int argc, char **argv)
-{
-    int in;
-    int out;
-    
-    if (socketserver_server_makepipe(&in, &out) != 0) {
-        perror("Failed to create socketpipe");
-        return 1;
-    }
-
-    switch(fork()) {
-        case 0:
-            close(in);
-            socketserver_client_subcommand(out);
-            break;
-        case -1:
-            perror("fork");
-            exit(1);
-        default:
-            close(out);
-            socketserver_server_subcommand(&in);
-            wait(NULL);
-            break;
-    }
-    return(0);
-}
-#endif
 
 /* vim: set ts=4 sw=4 sts=4 noet : */

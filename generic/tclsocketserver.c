@@ -13,6 +13,13 @@
 #undef TCL_STORAGE_CLASS
 #define TCL_STORAGE_CLASS DLLEXPORT
 
+static void socketserver_CmdDeleteProc(ClientData clientData)
+{
+	if (clientData != NULL) {
+		ckfree(clientData);
+	}
+}
+
 
 /*
  *----------------------------------------------------------------------
@@ -33,7 +40,7 @@
  */
 
 EXTERN int
-socketserver_Init(Tcl_Interp *interp)
+Socketserver_Init(Tcl_Interp *interp)
 {
     Tcl_Namespace *namespace;
     /*
@@ -53,9 +60,20 @@ socketserver_Init(Tcl_Interp *interp)
     }
 
     namespace = Tcl_CreateNamespace (interp, "::socketserver", NULL, NULL);
+    socketserver_objectClientData *data = (socketserver_objectClientData *)ckalloc(sizeof(socketserver_objectClientData));
+
+    if (data == NULL) {
+		return TCL_ERROR;
+    }
+
+    data->in = -1;
+    data->out = -1;
+    data->port = -1;
+    data->object_magic = SOCKETSERVER_OBJECT_MAGIC;
 
     /* Create the create command  */
-    Tcl_CreateObjCommand(interp, "::socketserver::socket", (Tcl_ObjCmdProc *) socketserverObjCmd, (ClientData)NULL, (Tcl_CmdDeleteProc *)NULL);
+    Tcl_CreateObjCommand(interp, "::socketserver::socket", (Tcl_ObjCmdProc *) socketserverObjCmd, 
+	(ClientData)data, (Tcl_CmdDeleteProc *)socketserver_CmdDeleteProc);
 
     Tcl_Export (interp, namespace, "*", 0);
 
@@ -77,7 +95,7 @@ socketserver_Init(Tcl_Interp *interp)
  */
 
 EXTERN int
-socketserver_SafeInit(Tcl_Interp *interp)
+Socketserver_SafeInit(Tcl_Interp *interp)
 {
     /*
      * can this work safely?  I don't know...
