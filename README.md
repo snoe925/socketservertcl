@@ -6,17 +6,35 @@ which passes accepted TCP connections to a child process over a socket pair.  Th
 a child process using sendmsg and SCM_RIGHTS.  This is internally implemented using libancillary for the 
 file descriptor passing.
 
-A ::socketserver::socket server ?port? opens the listening and accepting TCP socket.  You will do this once before forking children.
+```
++--------+     Listening and Accepting
+| parent | <-- TCP:8888
++-----+--+
+      |
+      V  socketpair()
+    +----+-----+
+    | in | out +--------+
+    +----+--+--+        |
+            |           |
+            V           V
+         +-----+     +-----+
+         |child|     |child| ...
+         +-----+     +-----+
 
-A ::socketserver::socket client ?handlerProc? is called in the client once for each socket.
+```
+
+A ::socketserver::socket server ?port? opens the listening and accepting TCP socket.  You will do this once before forking children.  The socket accept() call is performed in a background daemon thread. 
+Clients will be able to send data immediately on accept. Clients will not receive data until child processes
+call ::sockerserver::socket client ?handleProc?, Tcl dispatches the events and invokes the handlerProc and the handleProc reads the socket.
+
+A ::socketserver::socket client ?handlerProc? must be called to receive a connected TCP socket from the parent process.
 This allows the forked process to process single connects serially.
-Multiple forked processes can then handle many connections in parallel.
-Each forked child process can serially handle requests to a single connection.
+All of the child processes share a single queue implemented as the socketpair() between the parent and child processes.
+Multiple forked processes can then handle many connections in "parallel" after they serially recvmsg() the file descriptor.
+The child processes should only receive one connection and close the connection before requesting a new connection.
 
-Instead of connections queueing in the TCP backlog of the servers socket they are queue in a socketpair between the server and all child processes of the server.
-Therefore, clients to the TCP port are connected and accepted immediately, but they will not receive any data until
-one child process takes the socket with recvmsg() from the socketpair.
-
+The queue
+---------
 All of the child processes inherit the file descriptor for the read side of the socket pair.
 Therefore, the accepted() file descriptors are processed on a first-come, first-serve by the child processes.
 It is not predicatable which child process will receive the accepted file descriptor.
@@ -25,8 +43,8 @@ In Tcl program tests/echo_server.tcl implements an example server.  Telnet to po
 process id of the child process servicing the accepted socket.
 If you signal the parent server process with SIGUSR1, more child processes are forked.
 
-Outline of the Tcl Code
-===
+Outline of Tcl Code use
+----
 ```
 # Create the listening socket and a background C thread to accept connections
 ::socketserver::socket server 8888
@@ -51,7 +69,7 @@ vwait done
 ```
 
 Building
-===
+----
 This could use git submodules but that is not working completely for me.
 
 ```
@@ -66,3 +84,5 @@ autoreconf
 make
 make install
 ```
+
+Thanks to libancillary which made this code possible by clearly implementing file descriptor passing.
