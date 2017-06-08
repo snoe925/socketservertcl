@@ -22,26 +22,26 @@ socketserverObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj 
 
 typedef struct socketserver_objectClientData
 {
-    int object_magic;
-    // TCP port number
-    int port;
-    // Input and output fd's for pipe
-    int in;
-    // Client end of socketpair
-    int out; 
-    // Handler proc
-    const char *callback;
-    size_t scriptLen;
-    Tcl_Interp *interp;
-    Tcl_ThreadId threadId;
-    int active;
-    int need_channel;
-    Tcl_Channel channel;
+	int object_magic;
+	// TCP port number
+	int port;
+	// Input and output fd's for pipe
+	int in;
+	// Client end of socketpair
+	int out; 
+	// Handler proc
+	const char *callback;
+	size_t scriptLen;
+	Tcl_Interp *interp;
+	Tcl_ThreadId threadId;
+	int active;
+	int need_channel;
+	Tcl_Channel channel;
 } socketserver_objectClientData;
 
 typedef struct socketserver_ThreadEvent {
-    Tcl_Event event;
-    socketserver_objectClientData* data;
+	Tcl_Event event;
+	socketserver_objectClientData* data;
 } socketserver_ThreadEvent;
 
 #endif
