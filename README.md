@@ -49,3 +49,20 @@ if {[fork] == 0} {
 
 vwait done
 ```
+
+Building
+===
+This could use git submodules but that is not working completely for me.
+
+```
+cd libancillary
+git clone https://github.com/mhaberler/libancillary
+# Do not make, we include the source
+```
+To build do a standard Tcl extension build.
+```
+autoreconf
+./configure
+make
+make install
+```
