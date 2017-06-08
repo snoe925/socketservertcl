@@ -70,6 +70,7 @@ Socketserver_Init(Tcl_Interp *interp)
     data->out = -1;
     data->port = -1;
     data->object_magic = SOCKETSERVER_OBJECT_MAGIC;
+    data->need_channel = 1;
 
     /* Create the create command  */
     Tcl_CreateObjCommand(interp, "::socketserver::socket", (Tcl_ObjCmdProc *) socketserverObjCmd, 
