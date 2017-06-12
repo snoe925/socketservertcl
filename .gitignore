@@ -10,3 +10,10 @@ pkgIndex.tcl
 libsocketserver.so.*
 *.core
 *.swp
+libancillary/evclient
+libancillary/evclient.c
+libancillary/evserver
+libancillary/evserver.c
+libancillary/libancillary.a
+libancillary/test
+libancillary/test.c
