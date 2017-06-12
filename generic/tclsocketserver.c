@@ -66,9 +66,9 @@ Socketserver_Init(Tcl_Interp *interp)
 		return TCL_ERROR;
 	}
 
-	data->in = -1;
+	data->threadArgs.in = -1;
+	data->threadArgs.port = -1;
 	data->out = -1;
-	data->port = -1;
 	data->object_magic = SOCKETSERVER_OBJECT_MAGIC;
 	data->need_channel = 1;
 

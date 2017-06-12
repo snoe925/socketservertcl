@@ -20,13 +20,17 @@ socketserverObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj 
 
 #define SOCKETSERVER_OBJECT_MAGIC 71820352
 
+typedef struct socketserver_threadArgs {
+	// Input and output fd's for pipe
+	int in;
+	// TCP port number
+	int port;
+} socketserver_threadArgs;
+
 typedef struct socketserver_objectClientData
 {
 	int object_magic;
-	// TCP port number
-	int port;
-	// Input and output fd's for pipe
-	int in;
+	socketserver_threadArgs threadArgs;
 	// Client end of socketpair
 	int out; 
 	// Handler proc

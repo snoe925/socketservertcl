@@ -21,6 +21,9 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <pthread.h>
+#ifdef __FreeBSD__
+#include <netinet/in.h>
+#endif
 
 #define SPARE_SEND_FDS 1
 #define SPARE_RECV_FDS 1
@@ -58,7 +61,8 @@ static void debug(const char * msg) {
 
 static void * socketserver_thread(void *args)
 {
-	int sock = *(int *)args;
+	int *int_args = (int *)args;
+	int sock = int_args[0];
 	int socket_desc , client_sock;
 	struct sockaddr_in server , client;
 	int c = sizeof(struct sockaddr_in);
@@ -73,7 +77,7 @@ static void * socketserver_thread(void *args)
 
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = INADDR_ANY;
-	server.sin_port = htons( 8888 );
+	server.sin_port = htons( int_args[1] );
 	if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
 	{
 		debug("bind failed");
@@ -186,7 +190,7 @@ int socketserverObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 
 	// basic command line processing
 	if (objc != 3) {
-		Tcl_WrongNumArgs (interp, 1, objv, "server ?port? | client ?handlerProc?");
+		Tcl_WrongNumArgs (interp, 1, objv, "server port | client handlerProc");
 		return TCL_ERROR;
 	}
 
@@ -205,14 +209,14 @@ int socketserverObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 		case OPT_SERVER:
 
 			/* parse the port number argument */
-			if (Tcl_GetIntFromObj(interp, objv[2], &data->port)) {
+			if (Tcl_GetIntFromObj(interp, objv[2], &data->threadArgs.port)) {
 				Tcl_AddErrorInfo(interp, "problem getting port number as integer");
 				return TCL_ERROR;
 			}
 
 			/* If we do not have a socket pair create it */
 			Tcl_MutexLock(&threadMutex);
-			if (data->in == -1) {
+			if (data->threadArgs.in == -1) {
 				int sock[2];
 				pthread_t tid;
 
@@ -221,11 +225,11 @@ int socketserverObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 					Tcl_MutexUnlock(&threadMutex);
 					return TCL_ERROR;
 				}
-				data->in = sock[0];
+				data->threadArgs.in = sock[0];
 				data->out = sock[1];
 
 				/* Create a background thread to call accept and send the fd to the socketpair. */
-				if (pthread_create(&tid, NULL, socketserver_thread, &data->in) != 0) {
+				if (pthread_create(&tid, NULL, socketserver_thread, &data->threadArgs) != 0) {
 					Tcl_AddErrorInfo(interp, "Failed to create thread to read socketpipe");
 					Tcl_MutexUnlock(&threadMutex);
 					return TCL_ERROR;
